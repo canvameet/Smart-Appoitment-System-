@@ -6,3 +6,6 @@ __pycache__/
 .env
 *.log
 *.pkl
+firebase-service-account.json
+loginapp-e7f18-firebase-adminsdk-*.json
+notifications.db

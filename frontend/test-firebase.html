@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🔥 Firebase Connection Test</h1>
+    
+    <div id="results"></div>
+    
+    <h3>Test Actions:</h3>
+    <button onclick="testFirebaseConfig()">1. Test Firebase Config</button>
+    <button onclick="testFirestoreConnection()">2. Test Firestore</button>
+    <button onclick="testAuthConnection()">3. Test Auth</button>
+    
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC0qUMB0Uoq3lR95ZPfiuQlIMWW6Q4Hk1o",
+            authDomain: "loginapp-e7f18.firebaseapp.com",
+            projectId: "loginapp-e7f18",
+            storageBucket: "loginapp-e7f18.firebasestorage.app",
+            messagingSenderId: "419910970303",
+            appId: "1:419910970303:web:d325ace529b0511cf5cf0a",
+            measurementId: "G-7S5VG2W9PL"
+        };
+
+        let app, auth, db;
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.innerHTML = message;
+            document.getElementById('results').appendChild(div);
+        }
+
+        window.testFirebaseConfig = function() {
+            try {
+                app = initializeApp(firebaseConfig);
+                addResult('✅ Firebase initialized successfully!', 'success');
+                addResult(`📦 Project ID: ${firebaseConfig.projectId}`, 'info');
+            } catch (error) {
+                addResult(`❌ Firebase initialization failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.testFirestoreConnection = async function() {
+            try {
+                if (!app) {
+                    app = initializeApp(firebaseConfig);
+                }
+                db = getFirestore(app);
+                addResult('✅ Firestore initialized!', 'success');
+                
+                // Try to read users collection
+                const usersRef = collection(db, 'users');
+                const snapshot = await getDocs(usersRef);
+                addResult(`✅ Firestore connected! Found ${snapshot.size} users`, 'success');
+            } catch (error) {
+                addResult(`❌ Firestore error: ${error.message}`, 'error');
+                if (error.message.includes('blocked')) {
+                    addResult('⚠️ BLOCKED BY AD BLOCKER! Disable it and try again.', 'error');
+                }
+            }
+        };
+
+        window.testAuthConnection = async function() {
+            try {
+                if (!app) {
+                    app = initializeApp(firebaseConfig);
+                }
+                auth = getAuth(app);
+                addResult('✅ Auth initialized!', 'success');
+                
+                // Try anonymous sign in
+                await signInAnonymously(auth);
+                addResult('✅ Auth connection working!', 'success');
+            } catch (error) {
+                addResult(`❌ Auth error: ${error.message}`, 'error');
+                if (error.code === 'auth/network-request-failed') {
+                    addResult('⚠️ NETWORK BLOCKED! Check your ad blocker or firewall.', 'error');
+                }
+            }
+        };
+
+        // Auto-run first test
+        window.onload = () => {
+            addResult('🔍 Starting Firebase connection test...', 'info');
+            testFirebaseConfig();
+        };
+    </script>
+</body>
+</html>

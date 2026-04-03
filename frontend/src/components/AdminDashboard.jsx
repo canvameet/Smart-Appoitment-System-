@@ -3,9 +3,10 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
   FaUserClock, FaAmbulance, FaCheckCircle, FaHourglassHalf,
-  FaBell, FaSync, FaClock, FaUsers, FaChartBar
+  FaBell, FaSync, FaClock, FaUsers, FaChartBar, FaCalendarAlt
 } from 'react-icons/fa';
 import { MdCheckCircle } from 'react-icons/md';
+import DoctorScheduling from './admin/DoctorScheduling';
 
 const API = 'http://localhost:5000';
 
@@ -58,6 +59,7 @@ const NotifPanel = ({ notifications }) => {
 
 // ─── Main Admin Dashboard ─────────────────────────────────────────────────────
 const AdminDashboard = () => {
+  const [activeTab, setActiveTab]     = useState('queue'); // NEW: Tab state
   const [queue, setQueue]             = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [totalCount, setTotalCount]   = useState(0);
@@ -169,37 +171,71 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-slate-950 text-white">
       {/* Header */}
       <header className="bg-slate-900 border-b border-slate-700 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <span className="text-white font-black text-xl">+</span>
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <span className="text-white font-black text-xl">+</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-black tracking-tight">
+                  HealthPriority<span className="text-blue-400">AI</span>
+                  <span className="ml-3 text-sm font-semibold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">Admin Panel</span>
+                </h1>
+                <p className="text-xs text-slate-500">Dynamic Rescheduling Engine</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight">
-                HealthPriority<span className="text-blue-400">AI</span>
-                <span className="ml-3 text-sm font-semibold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">Admin Panel</span>
-              </h1>
-              <p className="text-xs text-slate-500">Dynamic Rescheduling Engine</p>
+            <div className="flex items-center gap-4 text-sm">
+              {emergencyCount > 0 && (
+                <div className="flex items-center gap-2 bg-red-900/50 text-red-400 border border-red-700 px-3 py-1.5 rounded-full animate-pulse font-bold">
+                  <FaAmbulance /> {emergencyCount} EMERGENCY
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-slate-400 text-xs">
+                <FaClock className="text-blue-400" />
+                Last sync: {lastRefresh || '...'}
+              </div>
+              <button onClick={fetchQueue} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all text-slate-400 hover:text-white">
+                <FaSync />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-sm">
-            {emergencyCount > 0 && (
-              <div className="flex items-center gap-2 bg-red-900/50 text-red-400 border border-red-700 px-3 py-1.5 rounded-full animate-pulse font-bold">
-                <FaAmbulance /> {emergencyCount} EMERGENCY
-              </div>
-            )}
-            <div className="flex items-center gap-2 text-slate-400 text-xs">
-              <FaClock className="text-blue-400" />
-              Last sync: {lastRefresh || '...'}
-            </div>
-            <button onClick={fetchQueue} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all text-slate-400 hover:text-white">
-              <FaSync />
+
+          {/* NEW: Navigation Tabs */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('queue')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                activeTab === 'queue'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+              }`}
+            >
+              <FaChartBar />
+              Queue Management
+            </button>
+            <button
+              onClick={() => setActiveTab('scheduling')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                activeTab === 'scheduling'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+              }`}
+            >
+              <FaCalendarAlt />
+              Doctor Scheduling
             </button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-6 grid grid-cols-12 gap-6">
+      {/* NEW: Conditional Content Based on Active Tab */}
+      {activeTab === 'scheduling' ? (
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <DoctorScheduling />
+        </div>
+      ) : (
+        <div className="max-w-7xl mx-auto px-6 py-6 grid grid-cols-12 gap-6">
 
         {/* ── STATS ROW ─────────────────────────────────────────────────────── */}
         <div className="col-span-12 grid grid-cols-4 gap-4">
@@ -394,7 +430,8 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-      </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -11,9 +11,38 @@ import os
 import scheduler as sched_engine
 from scheduler import PatientStatus
 
+# NEW: Import doctor schedule routes
+from doctor_schedule_routes import doctor_schedule_bp
+
+# NEW: Import appointment routes
+from appointment_routes import appointment_bp
+
+# NEW: Import WhatsApp service (replacing SMS)
+import whatsapp_service
+import doctor_whatsapp_service
+
+# NEW: Import notification system (additive only)
+from notification_routes import notification_bp
+from notification_scheduler import start_notification_scheduler
+
+# NEW: Import dataset/analytics routes (Kaggle No-Show dataset)
+from dataset_routes import dataset_bp
+
 app = Flask(__name__)
 # Enable CORS allowing all origins for hackathon simplicity
 CORS(app)
+
+# NEW: Register doctor schedule blueprint
+app.register_blueprint(doctor_schedule_bp)
+
+# NEW: Register appointment blueprint
+app.register_blueprint(appointment_bp)
+
+# NEW: Register notification blueprint (additive only)
+app.register_blueprint(notification_bp)
+
+# NEW: Register dataset analytics blueprint
+app.register_blueprint(dataset_bp)
 
 print(" Initializing Healthcare Time Predictor...")
 try:
@@ -21,13 +50,20 @@ try:
 except Exception as e:
     print(f" Failed to initialize predictor: {e}")
 
+# NEW: Initialize Kaggle dataset models (No-Show prediction + Analytics)
+try:
+    from noshow_predictor import initialize_all_models
+    initialize_all_models()
+except Exception as e:
+    print(f" Dataset models init warning (non-blocking): {e}")
+
 # ==============================================================================
 # MOCK DATABASE & DYNAMIC QUEUE MANAGER
 # ==============================================================================
 DOCTORS = [
-    {"id": "doc1", "name": "Dr. Sarah Adams (Cardiology)", "experience": 15},
-    {"id": "doc2", "name": "Dr. John Smith (General)", "experience": 8},
-    {"id": "doc3", "name": "Dr. Emily Chen (Pediatrics)", "experience": 12}
+    {"id": "doc1", "name": "Dr. Sarah Adams (Cardiology)", "experience": 15, "phone": "+919876543210"},
+    {"id": "doc2", "name": "Dr. John Smith (General)", "experience": 8, "phone": "+919876543211"},
+    {"id": "doc3", "name": "Dr. Emily Chen (Pediatrics)", "experience": 12, "phone": "+919876543212"}
 ]
 
 class QueueManager:
@@ -87,13 +123,54 @@ def get_slots():
         if not doctor_id or not date:
             return jsonify({'success': False, 'error': 'Missing doctor or date'}), 400
             
+        # Import doctor schedules from the blueprint module
+        from doctor_schedule_routes import doctor_schedules
+        
         # Find all appointments for this doctor on this exact date
         doc_appts = [a for a in q_manager.queue if a.get('doctor_id') == doctor_id and a.get('date') == date]
         
-        # Base smart slots - dynamically stripping out booked ones
-        base_times = ["09:00 AM", "09:45 AM", "10:20 AM", "11:10 AM", "01:00 PM", "01:35 PM", "02:15 PM", "03:00 PM", "04:15 PM"]
+        # Generate all possible time slots from 10:00 AM to 11:59 PM at 15-minute intervals
+        base_times = []
+        from datetime import datetime as dt, timedelta
+        curr = dt.strptime("10:00 AM", "%I:%M %p")
+        end_time = dt.strptime("11:59 PM", "%I:%M %p")
+        
+        while curr <= end_time:
+            next_time = curr + timedelta(minutes=15)
+            if next_time > end_time:
+                break
+            base_times.append(f"{curr.strftime('%I:%M %p')} - {next_time.strftime('%I:%M %p')}")
+            curr = next_time
+        
+        # Filter out already booked slots
         taken_slots = [a.get('time_slot') for a in doc_appts if a.get('time_slot')]
-        available = [t for t in base_times if t not in taken_slots]
+        
+        # Filter out slots where doctor is not available (Busy/Blocked)
+        doctor_schedule = [s for s in doctor_schedules if s['doctor_id'] == doctor_id and s['date'] == date]
+        
+        available = []
+        for slot in base_times:
+            if slot in taken_slots:
+                continue
+                
+            # Parse slot time
+            slot_start = slot.split(' - ')[0]
+            slot_start_dt = dt.strptime(slot_start, "%I:%M %p")
+            slot_start_time = slot_start_dt.strftime("%H:%M")
+            
+            # Check if doctor is available at this time
+            is_available = True
+            for schedule in doctor_schedule:
+                schedule_start = dt.strptime(schedule['start_time'], "%H:%M")
+                schedule_end = dt.strptime(schedule['end_time'], "%H:%M")
+                
+                if schedule_start <= slot_start_dt <= schedule_end:
+                    if schedule['status'] != 'Available':
+                        is_available = False
+                        break
+            
+            if is_available:
+                available.append(slot)
         
         return jsonify({'success': True, 'slots': available})
     except Exception as e:
@@ -142,6 +219,44 @@ def smart_book():
         appt_date = data.get('date', datetime.now().strftime("%Y-%m-%d"))
         time_slot = data.get('time_slot', '09:00 AM')
 
+        # Validate doctor availability at the selected time slot
+        from doctor_schedule_routes import doctor_schedules
+        from datetime import datetime as dt
+        
+        slot_start = time_slot.split(' - ')[0]
+        slot_start_dt = dt.strptime(slot_start, "%I:%M %p")
+        
+        doctor_schedule = [s for s in doctor_schedules if s['doctor_id'] == doctor_id and s['date'] == appt_date]
+        
+        is_doctor_available = False
+        unavailable_reason = ""
+        
+        if not doctor_schedule:
+            # No schedule means doctor is available by default
+            is_doctor_available = True
+        else:
+            # Check if the time slot falls within an available schedule
+            for schedule in doctor_schedule:
+                schedule_start = dt.strptime(schedule['start_time'], "%H:%M")
+                schedule_end = dt.strptime(schedule['end_time'], "%H:%M")
+                
+                if schedule_start <= slot_start_dt <= schedule_end:
+                    if schedule['status'] == 'Available':
+                        is_doctor_available = True
+                        break
+                    else:
+                        unavailable_reason = f"Doctor is {schedule['status'].lower()}"
+                        if schedule.get('reason'):
+                            unavailable_reason += f" ({schedule['reason']})"
+                        break
+        
+        if not is_doctor_available and doctor_schedule:
+            return jsonify({
+                'success': False,
+                'error': f'Doctor unavailable at selected time. {unavailable_reason}',
+                'doctor_unavailable': True
+            }), 400
+
         doctor_name = "Unknown"
         # Find doctor experience
         doctor_experience = 10
@@ -186,10 +301,71 @@ def smart_book():
         # Also inject into the Dynamic Rescheduling Engine
         sched_engine.add_patient_to_engine(final_appt)
 
+        # NEW: Send WhatsApp confirmation to patient
+        patient_phone = data.get('phone')
+        whatsapp_sent = False
+        whatsapp_sid = None
+        
+        if patient_phone:
+            wa_result = whatsapp_service.send_appointment_confirmation(patient_phone, final_appt)
+            if wa_result['success']:
+                print(f"✅ WhatsApp confirmation sent to {patient_phone}")
+                whatsapp_sent = True
+                whatsapp_sid = wa_result.get('message_sid')
+                
+                # Send emergency alert WhatsApp if flagged
+                if result.get('triage', {}).get('is_emergency', False):
+                    whatsapp_service.send_emergency_alert(patient_phone, final_appt)
+                    print(f"🚨 Emergency WhatsApp alert sent to {patient_phone}")
+            else:
+                print(f"⚠️  WhatsApp failed: {wa_result.get('error')}")
+        else:
+            print("ℹ️  No phone number provided, skipping WhatsApp")
+        
+        final_appt['whatsapp_sent'] = whatsapp_sent
+        if whatsapp_sid:
+            final_appt['whatsapp_sid'] = whatsapp_sid
+
+        # NEW: Send emergency WhatsApp alert to doctor if flagged
+        if result.get('triage', {}).get('is_emergency', False):
+            # Get doctor phone number
+            doctor_phone = None
+            for d in DOCTORS:
+                if d['id'] == doctor_id:
+                    doctor_phone = d.get('phone')
+                    break
+            
+            if doctor_phone:
+                doctor_wa_result = doctor_whatsapp_service.send_emergency_alert_to_doctor(
+                    doctor_phone, 
+                    final_appt
+                )
+                if doctor_wa_result['success']:
+                    print(f"🚨 Emergency WhatsApp sent to doctor {doctor_phone}")
+                else:
+                    print(f"⚠️  Doctor WhatsApp failed: {doctor_wa_result.get('error')}")
+            else:
+                print(f"⚠️  No phone number found for doctor {doctor_id}")
+
+        # NEW: Send emergency notification to doctor if AI triage flagged emergency
+        try:
+            if result.get('triage', {}).get('is_emergency', False):
+                from notification_service import send_emergency_alert
+                send_emergency_alert(
+                    doctor_id=doctor_id,
+                    patient_name=name,
+                    doctor_phone=None,  # Add doctor phone from DB in production
+                    doctor_token=None   # Add doctor FCM token from DB in production
+                )
+                print(f" 🚨 Emergency notification sent for patient: {name}")
+        except Exception as notif_err:
+            print(f" [NOTIF WARNING] Emergency alert failed (non-blocking): {notif_err}")
+
         return jsonify({
             'success': True,
             'appointment': final_appt,
-            'message': 'Successfully scheduled and processed!'
+            'message': 'Successfully scheduled and processed!',
+            'whatsapp_sent': whatsapp_sent
         }), 200
 
     except Exception as e:
@@ -328,4 +504,12 @@ if __name__ == '__main__':
     print("\n" + "=" * 80)
     print("SMART HEALTHCARE QUEUE SYS - FLASK API")
     print("=" * 80)
+
+    # NEW: Start notification reminder scheduler (checks every 60s for upcoming appointments)
+    start_notification_scheduler(
+        queue_getter=lambda: q_manager.queue,
+        interval_seconds=60
+    )
+    print(" 🔔 Notification scheduler started")
+
     app.run(host='0.0.0.0', port=5000, debug=True)

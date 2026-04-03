@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { FaSpinner, FaCalendarDay, FaUserMd, FaClock } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { auth } from '../firebase/firebase';
 
 const BookingForm = ({ onNewAppointment }) => {
   const [formData, setFormData] = useState({
     name: '',
     age: '',
+    phone: '',
     visit_type: 0,
     symptoms: '',
     doctor_id: '',
@@ -18,12 +20,17 @@ const BookingForm = ({ onNewAppointment }) => {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchingSlots, setFetchingSlots] = useState(false);
+  const [doctorAvailability, setDoctorAvailability] = useState(null);
+  const [dailyLimit, setDailyLimit] = useState(null);
 
-  // Fetch doctors on mount
+  // Get current user
+  const currentUser = auth.currentUser;
+
+  // Fetch doctors on mount - from Firestore (role='doctor')
   useEffect(() => {
     const fetchDoctors = async () => {
       try {
-        const resp = await axios.get('http://localhost:5000/doctors');
+        const resp = await axios.get('http://localhost:5000/doctors/list');
         if (resp.data.success) {
           setDoctors(resp.data.doctors);
           if (resp.data.doctors.length > 0) {
@@ -37,6 +44,28 @@ const BookingForm = ({ onNewAppointment }) => {
     fetchDoctors();
   }, []);
 
+  // Check daily appointment limit when date changes
+  useEffect(() => {
+    const checkDailyLimit = async () => {
+      if (!currentUser || !formData.date) return;
+      
+      try {
+        const resp = await axios.post('http://localhost:5000/appointments/check-limit', {
+          userId: currentUser.uid,
+          date: formData.date
+        });
+        
+        if (resp.data.success) {
+          setDailyLimit(resp.data);
+        }
+      } catch (err) {
+        console.error("Failed to check daily limit", err);
+      }
+    };
+    
+    checkDailyLimit();
+  }, [formData.date, currentUser]);
+
   // Fetch dynamic slots when doctor or date changes
   useEffect(() => {
     if (!formData.doctor_id || !formData.date) return;
@@ -44,12 +73,21 @@ const BookingForm = ({ onNewAppointment }) => {
     const fetchSlots = async () => {
       setFetchingSlots(true);
       try {
+        // Fetch available slots
         const resp = await axios.post('http://localhost:5000/available-slots', {
           doctor_id: formData.doctor_id,
           date: formData.date
         });
         if (resp.data.success) {
           setSlots(resp.data.slots);
+        }
+        
+        // Fetch doctor availability status
+        const statusResp = await axios.get(
+          `http://localhost:5000/doctor/schedule/status/${formData.doctor_id}?date=${formData.date}`
+        );
+        if (statusResp.data.success) {
+          setDoctorAvailability(statusResp.data);
         }
       } catch (err) {
         console.error("Failed to fetch slots", err);
@@ -62,21 +100,84 @@ const BookingForm = ({ onNewAppointment }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!currentUser) {
+      toast.error("Please login to book an appointment");
+      return;
+    }
+    
     if (!formData.name || !formData.age || !formData.symptoms || !formData.time_slot) {
       toast.error("Please fill all required fields and select a specific time slot!");
       return;
     }
 
+    // Check daily limit
+    if (dailyLimit && !dailyLimit.canBook) {
+      toast.error(dailyLimit.message);
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost:5000/smart-book', formData);
+      // First run AI triage
+      const triageResp = await axios.post('http://localhost:5000/ai-triage', {
+        symptoms: formData.symptoms
+      });
+      
+      const triage = triageResp.data.triage;
+      
+      // Create appointment in Firebase
+      const appointmentData = {
+        userId: currentUser.uid,
+        doctorId: formData.doctor_id,
+        date: formData.date,
+        timeSlot: formData.time_slot,
+        isEmergency: triage.is_emergency || false,
+        patientName: formData.name,
+        patientAge: parseInt(formData.age),
+        patientPhone: formData.phone,
+        symptoms: formData.symptoms,
+        triage: triage,
+        status: 'pending'
+      };
+      
+      const response = await axios.post('http://localhost:5000/appointments/create', appointmentData);
+      
       if (response.data.success) {
-        toast.success("Appointment Scheduled Successfully!");
-        onNewAppointment(response.data.appointment);
-        setFormData(prev => ({ ...prev, name: '', age: '', symptoms: '', time_slot: '' }));
+        const whatsappSent = response.data.appointment.whatsapp_sent;
+        toast.success(
+          <div>
+            <div className="font-bold">Appointment Booked!</div>
+            {whatsappSent && formData.phone && (
+              <div className="text-sm mt-1">💬 WhatsApp confirmation sent</div>
+            )}
+            {triage.is_emergency && (
+              <div className="text-sm mt-1 text-red-600">🚨 Emergency - Doctor alerted</div>
+            )}
+          </div>,
+          { duration: 5000 }
+        );
+        
+        if (onNewAppointment) {
+          onNewAppointment(response.data.appointment);
+        }
+        
+        setFormData(prev => ({ ...prev, name: '', age: '', phone: '', symptoms: '', time_slot: '' }));
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || "Failed to book appointment");
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || "Failed to book appointment";
+      
+      if (error.response?.status === 429) {
+        toast.error(
+          <div>
+            <div className="font-bold">Daily Limit Reached</div>
+            <div className="text-sm">{errorMsg}</div>
+          </div>,
+          { duration: 5000 }
+        );
+      } else {
+        toast.error(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -117,21 +218,76 @@ const BookingForm = ({ onNewAppointment }) => {
           </div>
         </div>
 
+        {/* Daily Limit Indicator */}
+        {dailyLimit && (
+          <div className={`p-3 rounded-lg border ${
+            dailyLimit.canBook 
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              {dailyLimit.canBook ? (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {dailyLimit.message}
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {dailyLimit.message}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Dynamic Slots UI */}
         <div>
            <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
-              <FaClock className="mr-2 text-blue-600"/> Available Dynamic Slots
+              <FaClock className="mr-2 text-blue-600"/> Available Time Slots (10:00 AM - 11:59 PM)
            </label>
+           
+           {/* Doctor Availability Status */}
+           {doctorAvailability && (
+             <div className={`mb-3 p-3 rounded-lg border ${
+               doctorAvailability.has_availability 
+                 ? 'bg-green-50 border-green-200 text-green-800' 
+                 : 'bg-red-50 border-red-200 text-red-800'
+             }`}>
+               <div className="flex items-center gap-2 text-sm font-semibold">
+                 {doctorAvailability.has_availability ? (
+                   <>
+                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                     </svg>
+                     Doctor Available - {doctorAvailability.available_slots} slot{doctorAvailability.available_slots !== 1 ? 's' : ''} open
+                   </>
+                 ) : (
+                   <>
+                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                     </svg>
+                     Doctor Unavailable - No available slots on this date
+                   </>
+                 )}
+               </div>
+             </div>
+           )}
+           
            {fetchingSlots ? (
-             <div className="text-sm text-gray-500 flex items-center p-3"><FaSpinner className="animate-spin mr-2" /> Calculating availability via AI queue...</div>
+             <div className="text-sm text-gray-500 flex items-center p-3"><FaSpinner className="animate-spin mr-2" /> Loading available slots...</div>
            ) : slots.length > 0 ? (
-             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-60 overflow-y-auto p-2 border border-gray-100 rounded-lg">
                 {slots.map((slot, i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => setFormData({...formData, time_slot: slot})}
-                    className={`py-2 px-1 text-xs font-semibold rounded-lg border transition-all ${
+                    className={`py-3 px-2 text-xs sm:text-sm font-semibold rounded-lg border transition-all ${
                       formData.time_slot === slot 
                         ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-200' 
                         : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
@@ -142,8 +298,14 @@ const BookingForm = ({ onNewAppointment }) => {
                 ))}
              </div>
            ) : (
-             <div className="text-sm text-red-500 bg-red-50 p-3 rounded-lg border border-red-100">
-                No slots available on this date for the selected doctor.
+             <div className="text-sm text-red-500 bg-red-50 p-4 rounded-lg border border-red-200 flex items-start gap-3">
+                <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <div className="font-semibold">No Available Slots</div>
+                  <div className="text-xs mt-1">Doctor is not available on this date. Please select a different date or doctor.</div>
+                </div>
              </div>
            )}
         </div>
@@ -166,13 +328,25 @@ const BookingForm = ({ onNewAppointment }) => {
                     value={formData.age} onChange={(e) => setFormData({...formData, age: e.target.value})} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Visit Type</label>
-            <select className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none"
-                    value={formData.visit_type} onChange={(e) => setFormData({...formData, visit_type: parseInt(e.target.value)})}>
-              <option value={0}>First Visit (New)</option>
-              <option value={1}>Follow-up</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number (for WhatsApp)</label>
+            <input 
+              type="tel" 
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              value={formData.phone} 
+              onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              placeholder="+919876543210"
+            />
+            <p className="text-xs text-gray-500 mt-1">💬 You'll receive appointment confirmation on WhatsApp</p>
           </div>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Visit Type</label>
+          <select className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none"
+                  value={formData.visit_type} onChange={(e) => setFormData({...formData, visit_type: parseInt(e.target.value)})}>
+            <option value={0}>First Visit (New)</option>
+            <option value={1}>Follow-up</option>
+          </select>
         </div>
 
         <div>
