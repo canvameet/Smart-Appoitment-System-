@@ -8,6 +8,7 @@ const BookingForm = ({ onNewAppointment }) => {
   const [formData, setFormData] = useState({
     name: '',
     age: '',
+    gender: '',
     phone: '',
     visit_type: 0,
     symptoms: '',
@@ -106,8 +107,8 @@ const BookingForm = ({ onNewAppointment }) => {
       return;
     }
     
-    if (!formData.name || !formData.age || !formData.symptoms || !formData.time_slot) {
-      toast.error("Please fill all required fields and select a specific time slot!");
+    if (!formData.name || !formData.age || !formData.gender || !formData.symptoms || !formData.time_slot) {
+      toast.error("Please fill all required fields including gender and select a specific time slot!");
       return;
     }
 
@@ -135,7 +136,9 @@ const BookingForm = ({ onNewAppointment }) => {
         isEmergency: triage.is_emergency || false,
         patientName: formData.name,
         patientAge: parseInt(formData.age),
+        patientGender: formData.gender,
         patientPhone: formData.phone,
+        patientEmail: currentUser.email || '',  // Get email from Firebase Auth
         symptoms: formData.symptoms,
         triage: triage,
         status: 'pending'
@@ -162,7 +165,7 @@ const BookingForm = ({ onNewAppointment }) => {
           onNewAppointment(response.data.appointment);
         }
         
-        setFormData(prev => ({ ...prev, name: '', age: '', phone: '', symptoms: '', time_slot: '' }));
+        setFormData(prev => ({ ...prev, name: '', age: '', gender: '', phone: '', symptoms: '', time_slot: '' }));
       }
     } catch (error) {
       const errorMsg = error.response?.data?.error || error.response?.data?.message || "Failed to book appointment";
@@ -311,9 +314,10 @@ const BookingForm = ({ onNewAppointment }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Patient Name</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Patient Name *</label>
           <input
             type="text"
+            required
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             value={formData.name}
             onChange={(e) => setFormData({...formData, name: e.target.value})}
@@ -321,14 +325,36 @@ const BookingForm = ({ onNewAppointment }) => {
           />
         </div>
         
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
-             <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
-             <input type="number" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none"
-                    value={formData.age} onChange={(e) => setFormData({...formData, age: e.target.value})} />
+             <label className="block text-sm font-medium text-gray-700 mb-1">Age *</label>
+             <input 
+               type="number" 
+               required
+               min="1"
+               max="120"
+               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+               value={formData.age} 
+               onChange={(e) => setFormData({...formData, age: e.target.value})} 
+               placeholder="25"
+             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number (for WhatsApp)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
+            <select
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              value={formData.gender}
+              onChange={(e) => setFormData({...formData, gender: e.target.value})}
+            >
+              <option value="">Select</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone (WhatsApp)</label>
             <input 
               type="tel" 
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
@@ -336,9 +362,17 @@ const BookingForm = ({ onNewAppointment }) => {
               onChange={(e) => setFormData({...formData, phone: e.target.value})}
               placeholder="+919876543210"
             />
-            <p className="text-xs text-gray-500 mt-1">💬 You'll receive appointment confirmation on WhatsApp</p>
           </div>
         </div>
+        
+        {formData.phone && (
+          <p className="text-xs text-gray-500 -mt-3 ml-1 flex items-center gap-1">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            You'll receive appointment confirmation on WhatsApp
+          </p>
+        )}
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Visit Type</label>

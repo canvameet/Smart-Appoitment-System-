@@ -11,6 +11,7 @@ import LoadingState from '../components/doctor/LoadingState';
 import StatsCard from '../components/doctor/StatsCard';
 import KeyboardShortcuts from '../components/doctor/KeyboardShortcuts';
 import HelpButton from '../components/doctor/HelpButton';
+import VoiceReportGenerator from '../components/doctor/VoiceReportGenerator';
 
 const DoctorDashboard = () => {
   const [appointments, setAppointments] = useState([]);
@@ -24,12 +25,18 @@ const DoctorDashboard = () => {
     emergency: 0,
     avgTime: 0
   });
+  const [doctorName, setDoctorName] = useState('Dr. Unknown');
+  const [doctorEmail, setDoctorEmail] = useState('');
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [consultationNotes, setConsultationNotes] = useState('');
 
   // Get current doctor ID from Firebase auth
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setDoctorId(user.uid);
+        setDoctorName(user.displayName || user.email || 'Dr. Unknown');
+        setDoctorEmail(user.email || '');
       } else {
         addAlert('Please log in to view appointments', 'error');
       }
@@ -196,6 +203,9 @@ const DoctorDashboard = () => {
   };
 
   const handleSaveNotes = async (patientId, notes) => {
+    // Save notes to state for use in voice report
+    setConsultationNotes(notes);
+    
     // In production, save to backend
     console.log('Saving notes for patient:', patientId, notes);
     addAlert('Notes saved successfully', 'success');
@@ -363,6 +373,54 @@ const DoctorDashboard = () => {
                 patientId={currentPatient.id}
                 onSave={handleSaveNotes}
               />
+
+              {/* Voice Report Generator Toggle */}
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+                <button
+                  onClick={() => setShowVoiceRecorder(!showVoiceRecorder)}
+                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                    <span className="font-bold text-lg">
+                      {showVoiceRecorder ? 'Hide' : 'Show'} Voice Report Generator
+                    </span>
+                  </div>
+                  <svg 
+                    className={`w-6 h-6 transition-transform ${showVoiceRecorder ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showVoiceRecorder && (
+                  <div className="mt-6">
+                    <VoiceReportGenerator 
+                      doctorName={doctorName}
+                      doctorEmail={doctorEmail}
+                      patientInfo={{
+                        name: currentPatient.patientName || currentPatient.name || 'Unknown Patient',
+                        age: currentPatient.patientAge || currentPatient.age || 'N/A',
+                        gender: currentPatient.patientGender || currentPatient.gender || 'N/A',
+                        symptoms: currentPatient.symptoms || 'No symptoms recorded',
+                        email: currentPatient.patientEmail || currentPatient.email || ''
+                      }}
+                      consultationNotes={consultationNotes}
+                      onReportGenerated={(reportData) => {
+                        console.log('Report generated:', reportData);
+                        addAlert('Medical report generated successfully!', 'success');
+                        // Clear notes after report generation
+                        setConsultationNotes('');
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Right Column - Timer, AI Insight, Next Patients */}

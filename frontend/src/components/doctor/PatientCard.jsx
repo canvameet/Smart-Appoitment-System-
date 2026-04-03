@@ -16,7 +16,12 @@ const PatientCard = ({ patient, onStart, onComplete, onSkip }) => {
   const patientName = patient?.patientName || patient?.name || 'Unknown Patient';
   const patientAge = patient?.patientAge || patient?.age || 'N/A';
   const symptoms = patient?.symptoms || 'No symptoms recorded';
-  const isOtherDoctorEmergency = patient?.isOtherDoctorEmergency || false;
+  
+  // TEMPORARY FIX: Disable the isOtherDoctorEmergency check entirely
+  // All patients shown to the doctor should be actionable
+  const isOtherDoctorEmergency = false; // Always allow interaction
+  
+  console.log('🔍 Patient:', patientName, '| Buttons ENABLED (override active)');
 
   return (
     <div className="bg-white rounded-2xl shadow-md p-8 border border-gray-100 hover:shadow-lg transition-shadow duration-300">
@@ -96,34 +101,52 @@ const PatientCard = ({ patient, onStart, onComplete, onSkip }) => {
       {/* Action Buttons */}
       <div className="flex gap-3 mt-8">
         <button
-          onClick={onStart}
-          disabled={isOtherDoctorEmergency}
+          onClick={(e) => {
+            e.preventDefault();
+            console.log('Start Consultation clicked for:', patientName);
+            if (onStart && !isOtherDoctorEmergency) {
+              onStart();
+            }
+          }}
+          disabled={isOtherDoctorEmergency || patient?.status === 'confirmed' || patient?.status === 'completed'}
           className={`flex-1 font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-md ${
-            isOtherDoctorEmergency 
+            isOtherDoctorEmergency || patient?.status === 'confirmed' || patient?.status === 'completed'
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg transform hover:-translate-y-0.5'
+              : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg transform hover:-translate-y-0.5 cursor-pointer'
           }`}
         >
-          Start Consultation
+          {patient?.status === 'confirmed' ? 'In Progress' : 'Start Consultation'}
         </button>
         <button
-          onClick={onComplete}
-          disabled={isOtherDoctorEmergency}
+          onClick={(e) => {
+            e.preventDefault();
+            console.log('Mark Complete clicked for:', patientName);
+            if (onComplete && !isOtherDoctorEmergency) {
+              onComplete();
+            }
+          }}
+          disabled={isOtherDoctorEmergency || patient?.status === 'completed'}
           className={`flex-1 font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-md ${
-            isOtherDoctorEmergency
+            isOtherDoctorEmergency || patient?.status === 'completed'
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-lg transform hover:-translate-y-0.5'
+              : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-lg transform hover:-translate-y-0.5 cursor-pointer'
           }`}
         >
-          Mark Complete
+          {patient?.status === 'completed' ? 'Completed' : 'Mark Complete'}
         </button>
         <button
-          onClick={onSkip}
-          disabled={isOtherDoctorEmergency}
+          onClick={(e) => {
+            e.preventDefault();
+            console.log('Skip clicked for:', patientName);
+            if (onSkip && !isOtherDoctorEmergency) {
+              onSkip();
+            }
+          }}
+          disabled={isOtherDoctorEmergency || patient?.status === 'completed'}
           className={`font-semibold py-4 px-6 rounded-xl transition-all duration-200 ${
-            isOtherDoctorEmergency
+            isOtherDoctorEmergency || patient?.status === 'completed'
               ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+              : 'bg-slate-200 hover:bg-slate-300 text-slate-700 cursor-pointer'
           }`}
         >
           Skip

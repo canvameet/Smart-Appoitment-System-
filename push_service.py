@@ -41,7 +41,10 @@ def _initialize_firebase():
         # Check if already initialized (prevents duplicate initialization errors)
         if not firebase_admin._apps:
             cred = credentials.Certificate(FIREBASE_SERVICE_ACCOUNT_PATH)
-            firebase_admin.initialize_app(cred)
+            # Initialize with Storage bucket
+            firebase_admin.initialize_app(cred, {
+                'storageBucket': 'loginapp-e7f18.firebasestorage.app'
+            })
 
         _fcm_available = True
         print("[FCM] Firebase Admin SDK initialized successfully")

@@ -10,3 +10,4 @@ google-generativeai
 twilio>=8.0.0
 google-cloud-firestore>=2.11.0
 firebase-admin>=6.2.0
+reportlab>=4.0.0

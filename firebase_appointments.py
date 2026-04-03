@@ -121,7 +121,9 @@ def create_appointment(appointment_data):
             'isEmergency': appointment_data.get('isEmergency', False),
             'patientName': appointment_data.get('patientName', ''),
             'patientAge': appointment_data.get('patientAge', 0),
+            'patientGender': appointment_data.get('patientGender', ''),
             'patientPhone': appointment_data.get('patientPhone', ''),
+            'patientEmail': appointment_data.get('patientEmail', ''),
             'symptoms': appointment_data.get('symptoms', ''),
             'triage': appointment_data.get('triage', {}),
             'predictedTime': appointment_data.get('predictedTime', 20),
@@ -177,9 +179,11 @@ def get_doctor_appointments(doctor_id, include_emergency=True):
         for doc in query.stream():
             appt = doc.to_dict()
             appt['id'] = doc.id
+            # Mark as doctor's own appointment
+            appt['isOtherDoctorEmergency'] = False
             appointments.append(appt)
         
-        # Get emergency appointments from ALL doctors
+        # Get emergency appointments from ALL doctors (for visibility only)
         if include_emergency:
             emergency_query = appointments_ref.where('isEmergency', '==', True)
             
@@ -189,8 +193,10 @@ def get_doctor_appointments(doctor_id, include_emergency=True):
                 
                 # Avoid duplicates (if doctor's own emergency appointment)
                 if appt['doctorId'] != doctor_id:
+                    # Mark as other doctor's emergency (view-only)
                     appt['isOtherDoctorEmergency'] = True
                     appointments.append(appt)
+                # If it's the doctor's own emergency, it's already added above with isOtherDoctorEmergency=False
         
         # Sort in Python instead of Firestore (to avoid index requirement)
         appointments.sort(key=lambda x: x.get('createdAt', datetime.now()), reverse=True)

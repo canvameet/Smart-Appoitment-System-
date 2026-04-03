@@ -28,6 +28,9 @@ from notification_scheduler import start_notification_scheduler
 # NEW: Import dataset/analytics routes (Kaggle No-Show dataset)
 from dataset_routes import dataset_bp
 
+# NEW: Import report generation routes
+from report_routes import report_bp
+
 app = Flask(__name__)
 # Enable CORS allowing all origins for hackathon simplicity
 CORS(app)
@@ -43,6 +46,9 @@ app.register_blueprint(notification_bp)
 
 # NEW: Register dataset analytics blueprint
 app.register_blueprint(dataset_bp)
+
+# NEW: Register report generation blueprint
+app.register_blueprint(report_bp)
 
 print(" Initializing Healthcare Time Predictor...")
 try:
@@ -123,16 +129,19 @@ def get_slots():
         if not doctor_id or not date:
             return jsonify({'success': False, 'error': 'Missing doctor or date'}), 400
             
-        # Import doctor schedules from the blueprint module
-        from doctor_schedule_routes import doctor_schedules
+        # Get doctor schedules from Firebase
+        import firebase_schedules
+        doctor_schedule = firebase_schedules.get_doctor_schedules(doctor_id, date)
         
-        # Find all appointments for this doctor on this exact date
-        doc_appts = [a for a in q_manager.queue if a.get('doctor_id') == doctor_id and a.get('date') == date]
+        # Get existing appointments from Firebase
+        import firebase_appointments
+        appointments = firebase_appointments.get_doctor_appointments(doctor_id, include_emergency=False)
+        doc_appts = [a for a in appointments if a.get('date') == date]
         
-        # Generate all possible time slots from 10:00 AM to 11:59 PM at 15-minute intervals
+        # Generate all possible time slots from 8:00 AM to 11:59 PM at 15-minute intervals
         base_times = []
         from datetime import datetime as dt, timedelta
-        curr = dt.strptime("10:00 AM", "%I:%M %p")
+        curr = dt.strptime("08:00 AM", "%I:%M %p")
         end_time = dt.strptime("11:59 PM", "%I:%M %p")
         
         while curr <= end_time:
@@ -143,10 +152,7 @@ def get_slots():
             curr = next_time
         
         # Filter out already booked slots
-        taken_slots = [a.get('time_slot') for a in doc_appts if a.get('time_slot')]
-        
-        # Filter out slots where doctor is not available (Busy/Blocked)
-        doctor_schedule = [s for s in doctor_schedules if s['doctor_id'] == doctor_id and s['date'] == date]
+        taken_slots = [a.get('timeSlot') for a in doc_appts if a.get('timeSlot')]
         
         available = []
         for slot in base_times:
@@ -156,24 +162,31 @@ def get_slots():
             # Parse slot time
             slot_start = slot.split(' - ')[0]
             slot_start_dt = dt.strptime(slot_start, "%I:%M %p")
-            slot_start_time = slot_start_dt.strftime("%H:%M")
             
-            # Check if doctor is available at this time
-            is_available = True
+            # If doctor has NO schedule for this date, all slots are available
+            if not doctor_schedule:
+                available.append(slot)
+                continue
+            
+            # Check if slot falls within doctor's available schedule
+            is_available = False
             for schedule in doctor_schedule:
-                schedule_start = dt.strptime(schedule['start_time'], "%H:%M")
-                schedule_end = dt.strptime(schedule['end_time'], "%H:%M")
+                schedule_start = dt.strptime(schedule['startTime'], "%H:%M")
+                schedule_end = dt.strptime(schedule['endTime'], "%H:%M")
                 
-                if schedule_start <= slot_start_dt <= schedule_end:
-                    if schedule['status'] != 'Available':
-                        is_available = False
-                        break
+                # Check if slot is within this schedule block AND status is Available
+                if schedule_start <= slot_start_dt <= schedule_end and schedule['status'] == 'Available':
+                    is_available = True
+                    break
             
             if is_available:
                 available.append(slot)
         
         return jsonify({'success': True, 'slots': available})
     except Exception as e:
+        print(f"Error in get_slots: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/health', methods=['GET'])

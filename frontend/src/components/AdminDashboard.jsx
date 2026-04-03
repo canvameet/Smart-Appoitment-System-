@@ -3,10 +3,11 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
   FaUserClock, FaAmbulance, FaCheckCircle, FaHourglassHalf,
-  FaBell, FaSync, FaClock, FaUsers, FaChartBar, FaCalendarAlt
+  FaBell, FaSync, FaClock, FaUsers, FaChartBar, FaCalendarAlt, FaCog
 } from 'react-icons/fa';
 import { MdCheckCircle } from 'react-icons/md';
 import DoctorScheduling from './admin/DoctorScheduling';
+import HospitalSettings from './admin/HospitalSettings';
 
 const API = 'http://localhost:5000';
 
@@ -225,6 +226,17 @@ const AdminDashboard = () => {
               <FaCalendarAlt />
               Doctor Scheduling
             </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                activeTab === 'settings'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+              }`}
+            >
+              <FaCog />
+              Hospital Settings
+            </button>
           </div>
         </div>
       </header>
@@ -233,6 +245,10 @@ const AdminDashboard = () => {
       {activeTab === 'scheduling' ? (
         <div className="max-w-7xl mx-auto px-6 py-6">
           <DoctorScheduling />
+        </div>
+      ) : activeTab === 'settings' ? (
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <HospitalSettings />
         </div>
       ) : (
         <div className="max-w-7xl mx-auto px-6 py-6 grid grid-cols-12 gap-6">
