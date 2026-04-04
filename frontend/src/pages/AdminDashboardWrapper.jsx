@@ -4,6 +4,7 @@ import { auth } from '../firebase/firebase';
 import axios from 'axios';
 import AdminDashboard from '../components/AdminDashboard';
 import SoftwareLicensePayment from '../components/SoftwareLicensePayment';
+import LoadingScreen from '../components/LoadingScreen';
 
 const API = 'http://localhost:5000';
 
@@ -46,14 +47,7 @@ const AdminDashboardWrapper = () => {
   };
 
   if (checking) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-semibold">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Verifying license..." />;
   }
 
   if (!hasLicense) {

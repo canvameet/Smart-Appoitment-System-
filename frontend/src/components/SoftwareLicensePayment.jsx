@@ -4,6 +4,7 @@ import { auth } from '../firebase/firebase';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { FaLock, FaCheckCircle, FaRupeeSign } from 'react-icons/fa';
+import LoadingScreen from './LoadingScreen';
 
 const API = 'http://localhost:5000';
 const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY_ID;
@@ -88,7 +89,7 @@ const SoftwareLicensePayment = ({ onPaymentSuccess }) => {
         key: RAZORPAY_KEY,
         amount: amount,
         currency: currency,
-        name: 'Smart Hospital System',
+        name: 'SmaHosp',
         description: 'Software License Fee',
         order_id: order_id,
         handler: async (response) => {
@@ -102,7 +103,7 @@ const SoftwareLicensePayment = ({ onPaymentSuccess }) => {
             });
 
             if (verifyResponse.data.success) {
-              toast.success('Payment successful! Welcome to Smart Hospital System');
+              toast.success('Payment successful! Welcome to SmaHosp');
               onPaymentSuccess();
             } else {
               toast.error('Payment verification failed');
@@ -139,23 +140,16 @@ const SoftwareLicensePayment = ({ onPaymentSuccess }) => {
   };
 
   if (verifying) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-semibold">Verifying license...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Verifying license..." />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         {/* Payment Card */}
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-blue-100">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-center">
+          <div className="bg-blue-600 p-8 text-center">
             <div className="bg-white/20 backdrop-blur-sm w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
               <FaLock className="text-4xl text-white" />
             </div>
@@ -200,7 +194,7 @@ const SoftwareLicensePayment = ({ onPaymentSuccess }) => {
             <button
               onClick={handlePayment}
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
             >
               {loading ? (
                 <>

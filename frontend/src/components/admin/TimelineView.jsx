@@ -1,4 +1,5 @@
 import React from 'react';
+import LoadingLogo from '../LoadingLogo';
 
 const TimelineView = ({ schedules, loading, onEdit, onDelete }) => {
   const getStatusColor = (status) => {
@@ -31,14 +32,7 @@ const TimelineView = ({ schedules, loading, onEdit, onDelete }) => {
     return (
       <div className="bg-white p-16 rounded-2xl shadow-lg border border-gray-200">
         <div className="text-center">
-          <div className="relative inline-block">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
+          <LoadingLogo size="lg" />
           <p className="text-gray-600 font-semibold mt-4">Loading schedules...</p>
           <p className="text-gray-400 text-sm mt-1">Please wait</p>
         </div>

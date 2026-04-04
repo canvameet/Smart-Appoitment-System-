@@ -6,13 +6,14 @@ import { auth } from '../firebase/firebase';
 import { signOut } from 'firebase/auth';
 import {
   FaUserClock, FaAmbulance, FaCheckCircle, FaHourglassHalf,
-  FaBell, FaSync, FaClock, FaUsers, FaChartBar, FaCalendarAlt, FaCog, FaHistory, FaSignOutAlt, FaBars, FaRupeeSign
+  FaBell, FaSync, FaClock, FaUsers, FaChartBar, FaCalendarAlt, FaCog, FaHistory, FaSignOutAlt, FaBars, FaRupeeSign, FaChartLine
 } from 'react-icons/fa';
 import { MdCheckCircle } from 'react-icons/md';
 import DoctorScheduling from './admin/DoctorScheduling';
 import HospitalSettings from './admin/HospitalSettings';
 import AdminHistory from './admin/AdminHistory';
 import PaymentManagement from './admin/PaymentManagement';
+import AnalyticsDashboard from './admin/AnalyticsDashboard';
 
 const API = 'http://localhost:5000';
 
@@ -73,6 +74,7 @@ const AdminDashboard = () => {
   const [loading, setLoading]         = useState({});
   const [lastRefresh, setLastRefresh] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true); // Sidebar toggle state
+  const [syncing, setSyncing] = useState(false); // Firebase sync state
 
   // Logout handler
   const handleLogout = async () => {
@@ -100,13 +102,37 @@ const AdminDashboard = () => {
       if (qRes.data.success) {
         setQueue(qRes.data.queue);
         setTotalCount(qRes.data.total);
+      } else {
+        console.error('Queue fetch failed:', qRes.data);
       }
       if (nRes.data.success) setNotifications(nRes.data.notifications);
       setLastRefresh(new Date().toLocaleTimeString());
     } catch (e) {
       console.error('Queue fetch error', e);
+      // Set empty queue on error
+      setQueue([]);
+      setTotalCount(0);
     }
   }, []);
+
+  // Sync Firebase appointments to queue
+  const syncFirebaseToQueue = async () => {
+    setSyncing(true);
+    try {
+      const response = await axios.post(`${API}/reschedule/sync-firebase`);
+      if (response.data.success) {
+        toast.success(`✅ Synced ${response.data.synced} appointments to queue`);
+        fetchQueue(); // Refresh queue after sync
+      } else {
+        toast.error('Failed to sync appointments');
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast.error('Failed to sync appointments from Firebase');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     fetchQueue();
@@ -207,7 +233,7 @@ const AdminDashboard = () => {
              +
            </div>
            <div>
-             <h1 className="text-lg font-bold text-white tracking-tight">Admin<span className="font-normal text-blue-400">Panel</span></h1>
+             <h1 className="text-lg font-bold text-white tracking-tight">Sma<span className="font-normal text-blue-400">Hosp</span></h1>
            </div>
         </div>
 
@@ -223,6 +249,12 @@ const AdminDashboard = () => {
                <button onClick={() => setActiveTab('scheduling')} className={`w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors ${activeTab === 'scheduling' ? 'border-l-[4px] border-blue-500 bg-slate-800 text-white' : 'border-l-[4px] border-transparent hover:bg-slate-800 hover:text-white'}`}>
                  <FaCalendarAlt className="text-lg opacity-80" />
                  Doctor Scheduling
+               </button>
+             </li>
+             <li>
+               <button onClick={() => setActiveTab('analytics')} className={`w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors ${activeTab === 'analytics' ? 'border-l-[4px] border-blue-500 bg-slate-800 text-white' : 'border-l-[4px] border-transparent hover:bg-slate-800 hover:text-white'}`}>
+                 <FaChartLine className="text-lg opacity-80" />
+                 Analytics
                </button>
              </li>
              <li>
@@ -260,9 +292,19 @@ const AdminDashboard = () => {
             <FaClock className="text-slate-400" /> Sync: {lastRefresh || '...'}
           </div>
 
-          {/* Sync Button */}
+          {/* Firebase Sync Button */}
+          <button 
+            onClick={syncFirebaseToQueue} 
+            disabled={syncing}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 border border-blue-500 text-white rounded-md transition-colors text-sm font-medium shadow-sm"
+          >
+            <FaSync className={`text-xs ${syncing ? 'animate-spin' : ''}`} /> 
+            {syncing ? 'Syncing...' : 'Sync Firebase'}
+          </button>
+
+          {/* Refresh Queue Button */}
           <button onClick={fetchQueue} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-md hover:bg-slate-700 hover:text-white transition-colors text-sm font-medium shadow-sm">
-            <FaSync className="text-xs" /> Sync Now
+            <FaSync className="text-xs" /> Refresh Queue
           </button>
         </div>
         </aside>
@@ -286,6 +328,7 @@ const AdminDashboard = () => {
              <h2 className="text-xl font-bold text-gray-800">
                {activeTab === 'queue' && 'Dynamic Rescheduling Queue'}
                {activeTab === 'scheduling' && 'Doctor Scheduling Matrix'}
+               {activeTab === 'analytics' && 'Analytics & Insights'}
                {activeTab === 'history' && 'Platform History'}
                {activeTab === 'payments' && 'Payment Management'}
                {activeTab === 'settings' && 'System Settings'}
@@ -304,6 +347,8 @@ const AdminDashboard = () => {
         {/* Tab Sub-views */}
         {activeTab === 'scheduling' ? (
           <div className="p-8 w-full"><DoctorScheduling /></div>
+        ) : activeTab === 'analytics' ? (
+          <div className="p-8 w-full"><AnalyticsDashboard /></div>
         ) : activeTab === 'history' ? (
           <div className="p-8 w-full"><AdminHistory /></div>
         ) : activeTab === 'payments' ? (
@@ -451,8 +496,24 @@ const AdminDashboard = () => {
                         })}
                         {queue.length === 0 && (
                           <tr>
-                            <td colSpan="6" className="px-6 py-12 text-center text-gray-500 font-medium">
-                              No patients in the rescheduling queue yet. Book an appointment to get started.
+                            <td colSpan="6" className="px-6 py-12 text-center">
+                              <div className="flex flex-col items-center gap-4">
+                                <div className="text-gray-400 text-5xl">📋</div>
+                                <div>
+                                  <p className="text-gray-700 font-semibold mb-2">No patients in queue</p>
+                                  <p className="text-gray-500 text-sm mb-4">
+                                    If you have appointments in Firebase, click "Sync Firebase" to load them into the queue.
+                                  </p>
+                                  <button 
+                                    onClick={syncFirebaseToQueue}
+                                    disabled={syncing}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md transition-colors text-sm font-medium shadow-sm"
+                                  >
+                                    <FaSync className={syncing ? 'animate-spin' : ''} />
+                                    {syncing ? 'Syncing...' : 'Sync Firebase Appointments'}
+                                  </button>
+                                </div>
+                              </div>
                             </td>
                           </tr>
                         )}

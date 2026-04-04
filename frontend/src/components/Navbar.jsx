@@ -27,7 +27,7 @@ const Navbar = ({ userRole, userId }) => {
           <div className="flex items-center">
             <Link to="/" className="flex items-center text-blue-600 gap-2">
               <FiActivity className="h-8 w-8" />
-              <span className="font-bold text-xl tracking-tight text-gray-900">Medi<span className="text-blue-600">Care</span> System</span>
+              <span className="font-bold text-xl tracking-tight text-gray-900">Sma<span className="text-blue-600">Hosp</span></span>
             </Link>
           </div>
           <div className="flex items-center gap-4">

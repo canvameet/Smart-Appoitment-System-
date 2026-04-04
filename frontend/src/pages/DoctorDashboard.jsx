@@ -276,7 +276,9 @@ const DoctorDashboard = () => {
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-slate-800">Doctor Dashboard</h1>
+              <h1 className="text-3xl font-bold text-slate-800">
+                <span className="text-slate-800">Sma</span><span className="text-blue-600">Hosp</span> - Doctor Dashboard
+              </h1>
               <p className="text-slate-500 mt-1">Manage your patient consultations</p>
               {doctorId && (
                 <p className="text-xs text-slate-400 mt-1">Doctor ID: {doctorId}</p>

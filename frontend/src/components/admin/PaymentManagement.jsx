@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { FaRupeeSign, FaCheckCircle, FaClock, FaTimesCircle, FaUndo, FaSearch } from 'react-icons/fa';
+import LoadingLogo from '../LoadingLogo';
 
 const API = 'http://localhost:5000';
 
@@ -101,8 +102,9 @@ const PaymentManagement = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex flex-col items-center justify-center h-64">
+        <LoadingLogo size="lg" />
+        <p className="mt-4 text-gray-600 font-semibold">Loading transactions...</p>
       </div>
     );
   }

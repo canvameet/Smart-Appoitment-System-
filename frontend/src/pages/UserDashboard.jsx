@@ -15,7 +15,9 @@ const UserDashboard = ({ user }) => {
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Patient Dashboard</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              <span className="text-gray-900">Sma</span><span className="text-blue-600">Hosp</span> - Patient Dashboard
+            </h1>
             <p className="text-gray-500">Welcome back, {user?.email}! Here's an overview of your health portal.</p>
           </div>
         </div>

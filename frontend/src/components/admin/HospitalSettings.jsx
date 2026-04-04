@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
+import LoadingLogo from '../LoadingLogo';
 
 const HospitalSettings = () => {
   const [settings, setSettings] = useState({
@@ -74,8 +75,9 @@ const HospitalSettings = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600"></div>
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <LoadingLogo size="xl" />
+        <p className="mt-4 text-gray-600 font-semibold">Loading settings...</p>
       </div>
     );
   }

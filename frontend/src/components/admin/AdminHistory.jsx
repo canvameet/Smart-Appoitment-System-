@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
+import LoadingLogo from '../LoadingLogo';
 
 const AdminHistory = () => {
   const [appointments, setAppointments] = useState([]);
@@ -69,8 +70,9 @@ const AdminHistory = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex flex-col items-center justify-center py-12">
+        <LoadingLogo size="lg" />
+        <p className="mt-4 text-gray-600 font-semibold">Loading history...</p>
       </div>
     );
   }

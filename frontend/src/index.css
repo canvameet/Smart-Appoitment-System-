@@ -53,6 +53,35 @@
     }
   }
 
+  /* Logo pulse zoom animation */
+  @keyframes pulse-zoom {
+    0% {
+      transform: scale(0.95);
+    }
+    25% {
+      transform: scale(1.05);
+    }
+    50% {
+      transform: scale(0.95);
+    }
+    75% {
+      transform: scale(1.05);
+    }
+    100% {
+      transform: scale(0.95);
+    }
+  }
+
+  /* Fade in animation */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
   .animate-slide-in {
     animation: slide-in 0.3s ease-out;
   }
@@ -67,5 +96,13 @@
 
   .animate-scaleIn {
     animation: scaleIn 0.3s ease-out;
+  }
+
+  .animate-pulse-zoom {
+    animation: pulse-zoom 2s ease-in-out infinite;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 1s ease-in;
   }
 }

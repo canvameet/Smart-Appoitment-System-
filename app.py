@@ -40,6 +40,9 @@ from payment_routes import payment_bp
 # NEW: Import license routes
 from license_routes import license_bp
 
+# NEW: Import analytics routes
+from analytics_routes import analytics_bp
+
 app = Flask(__name__)
 # Enable CORS allowing all origins for hackathon simplicity
 CORS(app)
@@ -67,6 +70,9 @@ app.register_blueprint(payment_bp)
 
 # NEW: Register license blueprint
 app.register_blueprint(license_bp)
+
+# NEW: Register analytics blueprint
+app.register_blueprint(analytics_bp)
 
 print(" Initializing Healthcare Time Predictor...")
 try:
@@ -521,6 +527,95 @@ def get_rescheduled_queue():
     }), 200
 
 
+@app.route('/reschedule/sync-firebase', methods=['POST'])
+def sync_firebase_to_queue():
+    """
+    Sync all pending Firebase appointments to the scheduler engine.
+    This loads existing appointments from Firebase into the in-memory queue.
+    """
+    try:
+        import firebase_appointments
+        
+        # Get all appointments from Firebase
+        result = firebase_appointments.get_all_appointments()
+        
+        if not result.get('success'):
+            return jsonify({
+                'success': False,
+                'error': 'Failed to fetch appointments from Firebase'
+            }), 500
+        
+        appointments = result.get('appointments', [])
+        
+        # Filter only pending/confirmed appointments (not completed/cancelled)
+        pending_appointments = [
+            apt for apt in appointments 
+            if apt.get('status', '').lower() in ['pending', 'confirmed']
+        ]
+        
+        synced_count = 0
+        skipped_count = 0
+        errors = []
+        
+        engine = sched_engine.get_engine()
+        
+        # Check which appointments are already in the queue
+        existing_ids = {task.patientId for task in engine.all_tasks.values()}
+        
+        for apt in pending_appointments:
+            try:
+                # Generate a unique patient ID if not exists
+                patient_id = apt.get('id', f"FB_{apt.get('userId', 'unknown')[:8]}")
+                
+                # Skip if already in queue
+                if patient_id in existing_ids:
+                    skipped_count += 1
+                    continue
+                
+                # Convert Firebase appointment to scheduler format
+                appointment_data = {
+                    'id': patient_id,
+                    'name': apt.get('patientName', 'Unknown Patient'),
+                    'age': apt.get('patientAge', 30),
+                    'visit_type': 0,  # Default
+                    'symptoms': apt.get('symptoms', ''),
+                    'triage': apt.get('triage', {}),
+                    'predicted_time': apt.get('predictedTime', 20),
+                    'doctor_id': apt.get('doctorId', 'doc1'),
+                    'doctor_name': apt.get('doctorName', 'Unknown Doctor'),
+                    'date': apt.get('date', datetime.now().strftime("%Y-%m-%d")),
+                    'time_slot': apt.get('timeSlot', '09:00 AM'),
+                    'created_at': apt.get('createdAt', datetime.now().isoformat())
+                }
+                
+                # Add to scheduler engine
+                sched_engine.add_patient_to_engine(appointment_data)
+                synced_count += 1
+                
+            except Exception as e:
+                errors.append(f"Error syncing appointment {apt.get('id')}: {str(e)}")
+                print(f"❌ Sync error for appointment {apt.get('id')}: {e}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Synced {synced_count} appointments to queue',
+            'synced': synced_count,
+            'skipped': skipped_count,
+            'total_firebase': len(pending_appointments),
+            'queue_size': len(engine.all_tasks),
+            'errors': errors if errors else None
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Firebase sync error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/reschedule/notifications', methods=['GET'])
 def get_notifications():
     """Return the full notification history from the engine."""
@@ -529,6 +624,52 @@ def get_notifications():
         'success': True,
         'notifications': engine.notifications_log
     }), 200
+
+
+def sync_firebase_on_startup():
+    """Auto-sync Firebase appointments to queue on server startup"""
+    try:
+        print("\n🔄 Syncing Firebase appointments to queue...")
+        import firebase_appointments
+        
+        result = firebase_appointments.get_all_appointments()
+        if not result.get('success'):
+            print("⚠️  Could not fetch Firebase appointments")
+            return
+        
+        appointments = result.get('appointments', [])
+        pending_appointments = [
+            apt for apt in appointments 
+            if apt.get('status', '').lower() in ['pending', 'confirmed']
+        ]
+        
+        synced = 0
+        for apt in pending_appointments:
+            try:
+                patient_id = apt.get('id', f"FB_{apt.get('userId', 'unknown')[:8]}")
+                appointment_data = {
+                    'id': patient_id,
+                    'name': apt.get('patientName', 'Unknown Patient'),
+                    'age': apt.get('patientAge', 30),
+                    'visit_type': 0,
+                    'symptoms': apt.get('symptoms', ''),
+                    'triage': apt.get('triage', {}),
+                    'predicted_time': apt.get('predictedTime', 20),
+                    'doctor_id': apt.get('doctorId', 'doc1'),
+                    'doctor_name': apt.get('doctorName', 'Unknown Doctor'),
+                    'date': apt.get('date', datetime.now().strftime("%Y-%m-%d")),
+                    'time_slot': apt.get('timeSlot', '09:00 AM'),
+                    'created_at': apt.get('createdAt', datetime.now().isoformat())
+                }
+                sched_engine.add_patient_to_engine(appointment_data)
+                synced += 1
+            except Exception as e:
+                print(f"⚠️  Skipped appointment {apt.get('id')}: {e}")
+        
+        print(f"✅ Synced {synced}/{len(pending_appointments)} appointments to queue")
+        
+    except Exception as e:
+        print(f"⚠️  Firebase sync failed (non-blocking): {e}")
 
 
 if __name__ == '__main__':
@@ -542,5 +683,8 @@ if __name__ == '__main__':
         interval_seconds=60
     )
     print(" 🔔 Notification scheduler started")
+    
+    # Sync Firebase appointments to queue on startup
+    sync_firebase_on_startup()
 
     app.run(host='0.0.0.0', port=5000, debug=True)
