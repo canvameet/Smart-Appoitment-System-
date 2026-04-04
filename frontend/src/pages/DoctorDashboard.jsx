@@ -411,6 +411,7 @@ const DoctorDashboard = () => {
                         email: currentPatient.patientEmail || currentPatient.email || ''
                       }}
                       consultationNotes={consultationNotes}
+                      appointmentId={currentPatient.id}
                       onReportGenerated={(reportData) => {
                         console.log('Report generated:', reportData);
                         addAlert('Medical report generated successfully!', 'success');

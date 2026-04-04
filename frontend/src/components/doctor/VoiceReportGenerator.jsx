@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { sendReportToBoth, initEmailJS } from '../../services/emailService';
 
-const VoiceReportGenerator = ({ doctorName, doctorEmail, patientInfo, consultationNotes, onReportGenerated }) => {
+const VoiceReportGenerator = ({ doctorName, doctorEmail, patientInfo, consultationNotes, onReportGenerated, appointmentId }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -292,7 +292,10 @@ const VoiceReportGenerator = ({ doctorName, doctorEmail, patientInfo, consultati
       const response = await fetch('http://localhost:5000/report/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reportData)
+        body: JSON.stringify({
+          ...reportData,
+          appointmentId: appointmentId  // Include appointment ID to save report
+        })
       });
       
       if (response.ok) {

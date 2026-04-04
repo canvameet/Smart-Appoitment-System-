@@ -31,6 +31,15 @@ from dataset_routes import dataset_bp
 # NEW: Import report generation routes
 from report_routes import report_bp
 
+# NEW: Import history routes
+from history_routes import history_bp
+
+# NEW: Import payment routes
+from payment_routes import payment_bp
+
+# NEW: Import license routes
+from license_routes import license_bp
+
 app = Flask(__name__)
 # Enable CORS allowing all origins for hackathon simplicity
 CORS(app)
@@ -49,6 +58,15 @@ app.register_blueprint(dataset_bp)
 
 # NEW: Register report generation blueprint
 app.register_blueprint(report_bp)
+
+# NEW: Register history blueprint
+app.register_blueprint(history_bp)
+
+# NEW: Register payment blueprint
+app.register_blueprint(payment_bp)
+
+# NEW: Register license blueprint
+app.register_blueprint(license_bp)
 
 print(" Initializing Healthcare Time Predictor...")
 try:

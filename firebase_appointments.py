@@ -333,3 +333,151 @@ def delete_appointment(appointment_id):
     except Exception as e:
         print(f"❌ Error deleting appointment: {e}")
         return {'success': False, 'message': str(e)}
+
+
+def get_appointments_by_patient(patient_id):
+    """
+    Get all appointments for a specific patient
+    
+    Args:
+        patient_id (str): Patient's Firebase UID
+    
+    Returns:
+        dict: {success: bool, appointments: list, error: str}
+    """
+    if not db:
+        return {'success': False, 'error': 'Database not available'}
+    
+    try:
+        appointments_ref = db.collection('appointments')
+        query = appointments_ref.where('userId', '==', patient_id)
+        
+        docs = query.stream()
+        
+        appointments = []
+        for doc in docs:
+            apt_data = doc.to_dict()
+            apt_data['id'] = doc.id
+            appointments.append(apt_data)
+        
+        print(f"✅ Retrieved {len(appointments)} appointments for patient {patient_id}")
+        
+        return {
+            'success': True,
+            'appointments': appointments,
+            'total': len(appointments)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching appointments for patient: {e}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': str(e)}
+
+
+def get_all_appointments():
+    """
+    Get all appointments (for admin)
+    
+    Returns:
+        dict: {success: bool, appointments: list, error: str}
+    """
+    if not db:
+        return {'success': False, 'error': 'Database not available'}
+    
+    try:
+        appointments_ref = db.collection('appointments')
+        docs = appointments_ref.stream()
+        
+        appointments = []
+        for doc in docs:
+            apt_data = doc.to_dict()
+            apt_data['id'] = doc.id
+            appointments.append(apt_data)
+        
+        print(f"✅ Retrieved {len(appointments)} total appointments")
+        
+        return {
+            'success': True,
+            'appointments': appointments,
+            'total': len(appointments)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching all appointments: {e}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': str(e)}
+
+
+def get_appointment_by_id(appointment_id):
+    """
+    Get a specific appointment by ID
+    
+    Args:
+        appointment_id (str): Appointment document ID
+    
+    Returns:
+        dict: {success: bool, appointment: dict, error: str}
+    """
+    if not db:
+        return {'success': False, 'error': 'Database not available'}
+    
+    try:
+        doc_ref = db.collection('appointments').document(appointment_id)
+        doc = doc_ref.get()
+        
+        if doc.exists:
+            apt_data = doc.to_dict()
+            apt_data['id'] = doc.id
+            
+            return {
+                'success': True,
+                'appointment': apt_data
+            }
+        else:
+            return {
+                'success': False,
+                'error': 'Appointment not found'
+            }
+        
+    except Exception as e:
+        print(f"❌ Error fetching appointment by ID: {e}")
+        return {'success': False, 'error': str(e)}
+
+
+
+def update_appointment(appointment_id, update_data):
+    """
+    Update appointment with any data
+    
+    Args:
+        appointment_id (str): Appointment document ID
+        update_data (dict): Data to update
+    
+    Returns:
+        dict: {success: bool, message: str}
+    """
+    if not db:
+        return {'success': False, 'message': 'Database not available'}
+    
+    try:
+        doc_ref = db.collection('appointments').document(appointment_id)
+        
+        # Add timestamp
+        update_data['updatedAt'] = datetime.now().isoformat()
+        
+        doc_ref.update(update_data)
+        
+        print(f"✅ Updated appointment {appointment_id}")
+        
+        return {
+            'success': True,
+            'message': 'Appointment updated successfully'
+        }
+        
+    except Exception as e:
+        print(f"❌ Error updating appointment: {e}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'message': str(e)}

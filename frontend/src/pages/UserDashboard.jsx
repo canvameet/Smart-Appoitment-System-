@@ -3,6 +3,8 @@ import BookingForm from '../components/BookingForm';
 import QueueDashboard from '../components/QueueDashboard';
 import TriageResult from '../components/TriageResult'; // Assuming this exists based on folder contents
 import PatientDoctorSchedule from '../components/patient/PatientDoctorSchedule';
+import PatientHistory from '../components/patient/PatientHistory';
+import { auth } from '../firebase/firebase';
 
 const UserDashboard = ({ user }) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -46,6 +48,19 @@ const UserDashboard = ({ user }) => {
             </svg>
             Doctor Availability
           </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all ${
+              activeTab === 'history'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            History
+          </button>
         </div>
       </div>
 
@@ -62,8 +77,13 @@ const UserDashboard = ({ user }) => {
             <QueueDashboard refreshTrigger={refreshTrigger} />
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'availability' ? (
         <PatientDoctorSchedule />
+      ) : (
+        <PatientHistory 
+          patientId={auth.currentUser?.uid} 
+          patientName={user?.email?.split('@')[0] || 'Patient'} 
+        />
       )}
     </div>
   );

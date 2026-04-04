@@ -71,6 +71,15 @@ const TimelineView = ({ schedules, loading, onEdit, onDelete }) => {
     );
   }
 
+  // Sort schedules by start_time in ascending order
+  const sortedSchedules = [...schedules].sort((a, b) => {
+    const timeA = a.start_time.split(':').map(Number);
+    const timeB = b.start_time.split(':').map(Number);
+    const minutesA = timeA[0] * 60 + timeA[1];
+    const minutesB = timeB[0] * 60 + timeB[1];
+    return minutesA - minutesB;
+  });
+
   return (
     <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow">
       <div className="flex items-center justify-between mb-8">
@@ -102,7 +111,7 @@ const TimelineView = ({ schedules, loading, onEdit, onDelete }) => {
       </div>
 
       <div className="space-y-4">
-        {schedules.map((schedule, index) => (
+        {sortedSchedules.map((schedule, index) => (
           <div
             key={schedule.id}
             className={`border-2 rounded-2xl p-6 transition-all hover:shadow-lg transform hover:-translate-y-1 ${getStatusColor(schedule.status)} animate-slideIn`}

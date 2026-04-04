@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminDashboardWrapper from './pages/AdminDashboardWrapper';
 import UserDashboard from './pages/UserDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
 
@@ -26,7 +27,7 @@ function App() {
           path="/admin-dashboard" 
           element={
             <ProtectedRoute allowedRoles={['admin']}>
-              <AdminDashboard />
+              <AdminDashboardWrapper />
             </ProtectedRoute>
           } 
         />

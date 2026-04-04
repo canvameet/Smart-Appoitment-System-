@@ -52,13 +52,14 @@ def update_hospital_settings():
 @report_bp.route('/report/generate', methods=['POST'])
 def generate_report():
     """
-    Generate medical report PDF, upload to Firebase, and optionally email it
+    Generate medical report PDF and save to appointment history
     Body: {
         patientName, age, gender, dateOfConsultation,
         symptoms, diagnosis, medicines, recommendations,
         followUpInstructions, additionalNotes, doctorName,
         patientEmail (optional), doctorEmail (optional),
-        sendEmail (optional, default: false)
+        sendEmail (optional, default: false),
+        appointmentId (optional) - to save report to appointment
     }
     """
     try:
@@ -82,42 +83,28 @@ def generate_report():
             hosp_settings
         )
         
-        # Upload PDF to Firebase Storage
-        import firebase_storage
-        
-        # Create a copy for upload
-        upload_buffer = io.BytesIO(pdf_buffer.getvalue())
-        
-        pdf_url = ''
-        try:
-            print("📤 Attempting to upload PDF to Firebase Storage...")
-            upload_result = firebase_storage.upload_pdf_report(
-                pdf_buffer=upload_buffer,
-                patient_name=report_data.get('patientName', 'Patient'),
-                report_date=datetime.now().strftime('%Y%m%d_%H%M%S')
-            )
-            
-            print(f"📦 Upload result: {upload_result}")
-            
-            if upload_result['success']:
-                pdf_url = upload_result.get('url', '')
-                print(f"✅ PDF uploaded successfully! URL: {pdf_url}")
-            else:
-                print(f"⚠️ Warning: PDF upload failed: {upload_result.get('error', 'Unknown error')}")
-                print(f"⚠️ Full error: {upload_result.get('message', 'No message')}")
-                print("📄 Continuing without email functionality...")
-        except Exception as upload_error:
-            print(f"⚠️ Warning: PDF upload exception: {upload_error}")
-            import traceback
-            traceback.print_exc()
-            print("📄 Continuing without email functionality...")
-            pdf_url = ''
+        # Save report to appointment if appointmentId provided
+        appointment_id = report_data.get('appointmentId')
+        if appointment_id:
+            try:
+                print(f"💾 Saving report to appointment: {appointment_id}")
+                firebase_appointments.update_appointment(
+                    appointment_id,
+                    {
+                        'reportData': report_data,
+                        'reportGeneratedAt': datetime.now().isoformat(),
+                        'status': 'completed'  # Mark as completed when report is generated
+                    }
+                )
+                print(f"✅ Report saved to appointment history")
+            except Exception as save_error:
+                print(f"⚠️ Warning: Failed to save report to appointment: {save_error}")
         
         # Check if email should be sent
         send_email = report_data.get('sendEmail', False)
         email_results = None
         
-        if send_email and pdf_url:
+        if send_email:
             patient_email = report_data.get('patientEmail')
             doctor_email = report_data.get('doctorEmail')
             
@@ -130,7 +117,7 @@ def generate_report():
                     patient_name=report_data.get('patientName', 'Patient'),
                     doctor_email=doctor_email,
                     doctor_name=report_data.get('doctorName', 'Doctor'),
-                    pdf_url=pdf_url,
+                    pdf_url='',  # Not used anymore
                     report_data=report_data
                 )
                 
@@ -144,7 +131,7 @@ def generate_report():
         # Reset buffer for download
         pdf_buffer.seek(0)
         
-        # Return PDF file with email status and download URL
+        # Return PDF file with email status
         response = send_file(
             pdf_buffer,
             mimetype='application/pdf',
@@ -152,10 +139,7 @@ def generate_report():
             download_name=filename
         )
         
-        # Add PDF URL and email status to response headers
-        if pdf_url:
-            response.headers['X-PDF-URL'] = pdf_url
-        
+        # Add email status to response headers
         if email_results:
             response.headers['X-Email-Sent'] = 'true' if email_results['success'] else 'false'
             response.headers['X-Email-Status'] = '; '.join(email_results['messages'])
